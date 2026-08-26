@@ -1,0 +1,30 @@
+# Ambiente de banco de dados local do Longevus.
+#
+# Sobe um PostgreSQL com a extensão PostGIS habilitada, equivalente ao que o
+# Supabase oferece em produção. É este ambiente que permite executar as
+# consultas espaciais e medir os requisitos não funcionais de desempenho.
+#
+# Uso:
+#   docker compose up -d
+#   docker compose exec -T db psql -U longevus -d longevus < pipeline/sql/create_tables.sql
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: longevus-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-longevus}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-longevus}
+      POSTGRES_DB: ${POSTGRES_DB:-longevus}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - longevus-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-longevus} -d ${POSTGRES_DB:-longevus}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  longevus-pgdata:
