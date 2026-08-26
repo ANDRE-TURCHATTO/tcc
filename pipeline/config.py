@@ -22,8 +22,13 @@ SUPABASE_DB: str = os.getenv("SUPABASE_DB", "postgres")
 SUPABASE_USER: str = os.getenv("SUPABASE_USER", "postgres")
 SUPABASE_PASSWORD: str = os.getenv("SUPABASE_PASSWORD", "")
 
-# URL de conexão SQLAlchemy montada a partir das variáveis individuais
-SUPABASE_DB_URL: str = (
+# URL de conexão SQLAlchemy.
+#
+# `DATABASE_URL` tem precedência quando definida, o que permite apontar o
+# pipeline para o PostgreSQL local do `docker-compose.yml` sem alterar as
+# variáveis de Supabase. Na ausência dela, a URL é montada a partir das
+# variáveis individuais.
+SUPABASE_DB_URL: str = os.getenv("DATABASE_URL", "") or (
     f"postgresql://{SUPABASE_USER}:{SUPABASE_PASSWORD}"
     f"@{SUPABASE_HOST}:{SUPABASE_PORT}/{SUPABASE_DB}"
 )

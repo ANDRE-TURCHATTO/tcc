@@ -1,43 +1,43 @@
 codigo_ibge,nome,microrregiao
-410030,Ampére,Capanema
-410080,Barracão,Capanema
-410140,Bela Vista da Caroba,Capanema
-410290,Boa Esperança do Iguaçu,Francisco Beltrão
-410390,Bom Jesus do Sul,Francisco Beltrão
-410450,Bom Sucesso do Sul,Pato Branco
-410520,Capanema,Capanema
-410570,Chopinzinho,Pato Branco
-410650,Clevelândia,Palmas
-410750,Coronel Domingos Soares,Palmas
-410820,Coronel Vivida,Pato Branco
-410860,Cruzeiro do Iguaçu,Francisco Beltrão
-410920,Dois Vizinhos,Francisco Beltrão
-410970,Enéas Marques,Francisco Beltrão
-411000,Flor da Serra do Sul,Capanema
-411020,Francisco Beltrão,Francisco Beltrão
-411080,Honório Serpa,Palmas
+410100,Ampére,Capanema
+410260,Barracão,Francisco Beltrão
+410275,Bela Vista da Caroba,Capanema
+410302,Boa Esperança do Iguaçu,Francisco Beltrão
+410315,Bom Jesus do Sul,Francisco Beltrão
+410322,Bom Sucesso do Sul,Pato Branco
+410450,Capanema,Capanema
+410540,Chopinzinho,Pato Branco
+410570,Clevelândia,Palmas
+410645,Coronel Domingos Soares,Palmas
+410650,Coronel Vivida,Pato Branco
+410657,Cruzeiro do Iguaçu,Francisco Beltrão
+410720,Dois Vizinhos,Francisco Beltrão
+410740,Enéas Marques,Francisco Beltrão
+410785,Flor da Serra do Sul,Francisco Beltrão
+410840,Francisco Beltrão,Francisco Beltrão
+410965,Honório Serpa,Palmas
 411120,Itapejara d'Oeste,Pato Branco
-411160,Jardim Olinda,Capanema
-411230,Mangueirinha,Palmas
-411280,Manfrinópolis,Capanema
-411370,Mariópolis,Pato Branco
-411460,Marmeleiro,Francisco Beltrão
-411500,Nova Esperança do Sudoeste,Francisco Beltrão
-411580,Nova Prata do Iguaçu,Capanema
-411620,Pato Branco,Pato Branco
-411690,Pérola d'Oeste,Capanema
-411750,Pinhal de São Bento,Francisco Beltrão
-411820,Planalto,Francisco Beltrão
-411850,Pranchita,Capanema
-411900,Realeza,Capanema
-411980,Renascença,Francisco Beltrão
-412020,Salgado Filho,Francisco Beltrão
-412080,Salto do Lontra,Francisco Beltrão
-412120,Santa Izabel do Oeste,Francisco Beltrão
-412170,Santo Antônio do Sudoeste,Capanema
-412300,São João,Pato Branco
-412500,São Jorge d'Oeste,Pato Branco
-412530,Sulina,Pato Branco
-412600,Verê,Francisco Beltrão
-412640,Vitorino,Pato Branco
-412780,Santa Lúcia,Capanema
+411435,Manfrinópolis,Francisco Beltrão
+411440,Mangueirinha,Palmas
+411530,Mariópolis,Pato Branco
+411540,Marmeleiro,Francisco Beltrão
+411695,Nova Esperança do Sudoeste,Francisco Beltrão
+411725,Nova Prata do Iguaçu,Francisco Beltrão
+411760,Palmas,Palmas
+411850,Pato Branco,Pato Branco
+411900,Pérola d'Oeste,Capanema
+411925,Pinhal de São Bento,Francisco Beltrão
+411980,Planalto,Capanema
+412035,Pranchita,Capanema
+412140,Realeza,Capanema
+412160,Renascença,Francisco Beltrão
+412280,Salgado Filho,Francisco Beltrão
+412300,Salto do Lontra,Francisco Beltrão
+412380,Santa Izabel do Oeste,Capanema
+412440,Santo Antônio do Sudoeste,Francisco Beltrão
+412480,São João,Pato Branco
+412520,São Jorge d'Oeste,Francisco Beltrão
+412627,Saudade do Iguaçu,Pato Branco
+412665,Sulina,Pato Branco
+412860,Verê,Francisco Beltrão
+412870,Vitorino,Pato Branco

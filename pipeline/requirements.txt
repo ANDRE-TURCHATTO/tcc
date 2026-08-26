@@ -1,5 +1,7 @@
 pysus
 pandas
+pyreaddbc
+dbfread
 sqlalchemy
 psycopg2-binary
 python-dotenv

@@ -5,9 +5,15 @@ Aplica as seguintes transformações ao DataFrame bruto:
   - RF-02: Filtro por municípios do Sudoeste do Paraná
   - RF-03: Criação da coluna de faixas etárias
   - RF-04: Criação da coluna de capítulos CID-10
+  - RF-16: Descarte de registros inconsistentes, com contabilização por motivo
+
+A contabilização dos descartes é exposta em `EstatisticasTransformacao` para
+permitir a caracterização quantitativa da base (número de registros brutos,
+filtrados, descartados e carregados).
 """
 
 import logging
+from dataclasses import dataclass, field
 
 import pandas as pd
 
@@ -19,7 +25,7 @@ logger = logging.getLogger(__name__)
 # RF-04 — Mapeamento completo dos capítulos do CID-10
 # Chave: prefixo do código CID-10; Valor: numeral romano do capítulo
 # ---------------------------------------------------------------------------
-_CID_CAPITULOS: dict[tuple[str, str], str] = {
+_CID_CAPITULOS: dict[tuple[str, ...], str] = {
     # Capítulo I — Algumas doenças infecciosas e parasitárias (A00–B99)
     ("A", "B"): "I",
     # Capítulo II — Neoplasias (C00–D48)
@@ -73,6 +79,60 @@ _PREFIXO_PARA_CAPITULO: dict[str, str] = {
     for prefixo in prefixos
 }
 
+# Marcador de código CID-10 não classificável em nenhum capítulo
+CAPITULO_DESCONHECIDO: str = "Desconhecido"
+
+# ---------------------------------------------------------------------------
+# Códigos de unidade do campo COD_IDADE no SIH/SUS
+# ---------------------------------------------------------------------------
+# 0 — idade ignorada        3 — idade em meses
+# 1 — idade em horas        4 — idade em anos (0 a 99)
+# 2 — idade em dias         5 — idade em anos, 100 ou mais (idade = 100 + IDADE)
+_COD_IDADE_ANOS: str = "4"
+_COD_IDADE_CENTENARIO: str = "5"
+_COD_IDADE_SUBANUAL: frozenset = frozenset({"0", "1", "2", "3"})
+
+# ---------------------------------------------------------------------------
+# Códigos do campo SEXO no SIH/SUS
+# ---------------------------------------------------------------------------
+# 1 — masculino    2 — feminino (layouts anteriores a 2008)    3 — feminino
+# 0/9 — ignorado. Registros com sexo ignorado são descartados.
+_MAPA_SEXO: dict[str, str] = {
+    "1": "M",
+    "M": "M",
+    "2": "F",
+    "3": "F",
+    "F": "F",
+}
+
+
+@dataclass
+class EstatisticasTransformacao:
+    """
+    Contabiliza o funil de transformação, do registro bruto ao registro carregado.
+
+    Attributes:
+        brutos: registros recebidos do SIH/SUS (estado do Paraná inteiro).
+        fora_da_regiao: descartados por MUNIC_RES fora do Sudoeste do Paraná.
+        descartes: descartados por inconsistência, por motivo.
+        finais: registros prontos para carga.
+    """
+
+    brutos: int = 0
+    fora_da_regiao: int = 0
+    descartes: dict = field(default_factory=dict)
+    finais: int = 0
+
+    @property
+    def total_descartados(self) -> int:
+        """Soma dos descartes por inconsistência (não inclui o filtro regional)."""
+        return sum(self.descartes.values())
+
+    def registrar_descarte(self, motivo: str, quantidade: int) -> None:
+        """Acumula `quantidade` descartes sob o `motivo` informado."""
+        if quantidade > 0:
+            self.descartes[motivo] = self.descartes.get(motivo, 0) + quantidade
+
 
 def _classificar_cid(codigo: str) -> str:
     """
@@ -88,8 +148,8 @@ def _classificar_cid(codigo: str) -> str:
     Returns:
         str: Numeral romano do capítulo (ex: 'X', 'XI') ou 'Desconhecido'.
     """
-    if not isinstance(codigo, str) or len(codigo) < 1:
-        return "Desconhecido"
+    if not isinstance(codigo, str) or len(codigo.strip()) < 1:
+        return CAPITULO_DESCONHECIDO
     codigo = codigo.strip().upper()
     # Tenta prefixo de 2 caracteres primeiro (ex: 'D5', 'H6')
     prefixo2 = codigo[:2]
@@ -99,40 +159,74 @@ def _classificar_cid(codigo: str) -> str:
     prefixo1 = codigo[:1]
     if prefixo1 in _PREFIXO_PARA_CAPITULO:
         return _PREFIXO_PARA_CAPITULO[prefixo1]
-    return "Desconhecido"
+    return CAPITULO_DESCONHECIDO
 
 
-def _decodificar_idade_sih(valor: int) -> int:
+def _decodificar_idade_sih(idade, cod_idade=None) -> int:
     """
-    Decodifica o campo IDADE do SIH/SUS, que utiliza prefixo de unidade.
+    Decodifica a idade do SIH/SUS a partir dos campos IDADE e COD_IDADE.
 
-    O campo IDADE no SIH/SUS é codificado da seguinte forma:
-      - Dígito inicial 1xxx: idade em dias (xxx dias)
-      - Dígito inicial 2xxx: idade em meses (xxx meses)
-      - Dígito inicial 3xxx: idade em meses (valores 1–11 → meses)
-      - Dígito inicial 4xxx: idade em anos (xxx anos, 1 a 99)
-      - Dígito inicial 5xxx: idade em anos (100 ou mais)
+    No layout do SIH/SUS a idade é representada por dois campos: `IDADE`
+    guarda o número e `COD_IDADE` guarda a unidade de medida. Idades
+    subanuais (horas, dias, meses) são convertidas para 0 anos completos,
+    e a faixa "0-10" as absorve.
 
-    Para fins de análise, valores em dias/meses são convertidos para 0 anos,
-    e a faixa "0-10" captura esses casos.
+    Quando `COD_IDADE` não é informado (None/NaN/vazio), assume-se que
+    `IDADE` já está expressa em anos — situação de bases pré-processadas.
 
     Args:
-        valor (int): Valor bruto do campo IDADE.
+        idade: Valor do campo IDADE.
+        cod_idade: Valor do campo COD_IDADE (unidade de medida).
 
     Returns:
-        int: Idade aproximada em anos inteiros.
+        int: Idade em anos completos. Retorna -1 quando indecifrável,
+        sinalizando registro inconsistente a ser descartado.
     """
-    if pd.isna(valor):
-        return 0
-    valor = int(valor)
-    prefixo = valor // 1000
-    numero = valor % 1000
-    if prefixo == 4:
-        return numero      # anos diretamente
-    if prefixo == 5:
-        return 100 + numero  # 100+ anos
-    # prefixo 1 (dias), 2 (meses), 3 (meses < 1 ano) → 0 anos
-    return 0
+    if idade is None or pd.isna(idade):
+        return -1
+    try:
+        numero = int(float(idade))
+    except (TypeError, ValueError):
+        return -1
+    if numero < 0:
+        return -1
+
+    unidade = "" if cod_idade is None or pd.isna(cod_idade) else str(cod_idade).strip()
+    # Normaliza códigos numéricos lidos como float (ex: '4.0' vira '4')
+    if unidade.endswith(".0"):
+        unidade = unidade[:-2]
+
+    if unidade == "":
+        return numero  # IDADE já em anos
+    if unidade == _COD_IDADE_ANOS:
+        return numero
+    if unidade == _COD_IDADE_CENTENARIO:
+        return 100 + numero
+    if unidade in _COD_IDADE_SUBANUAL:
+        return 0  # horas, dias ou meses: menos de 1 ano completo
+    return -1  # unidade não prevista no layout
+
+
+def _normalizar_sexo(valor):
+    """
+    Converte o campo SEXO do SIH/SUS para o domínio 'M' / 'F'.
+
+    O SIH/SUS codifica o sexo numericamente (1 = masculino, 3 = feminino;
+    layouts anteriores a 2008 usam 2 para feminino). O modelo de dados do
+    Longevus armazena 'M' ou 'F'.
+
+    Args:
+        valor: Valor bruto do campo SEXO.
+
+    Returns:
+        str | None: 'M', 'F', ou None quando ignorado/inválido.
+    """
+    if valor is None or pd.isna(valor):
+        return None
+    texto = str(valor).strip().upper()
+    if texto.endswith(".0"):
+        texto = texto[:-2]
+    return _MAPA_SEXO.get(texto)
 
 
 def _classificar_faixa_etaria(idade: int) -> str:
@@ -163,7 +257,7 @@ def _classificar_faixa_etaria(idade: int) -> str:
     return "61+"
 
 
-def _carregar_codigos_municipios() -> set[str]:
+def _carregar_codigos_municipios() -> set:
     """
     Carrega os códigos IBGE dos municípios do Sudoeste do Paraná a partir
     do arquivo CSV de referência.
@@ -196,7 +290,7 @@ def filtrar_municipios(df: pd.DataFrame) -> pd.DataFrame:
     antes = len(df)
     df = df[df["MUNIC_RES"].isin(codigos)].reset_index(drop=True)
     logger.info(
-        "Filtro de municípios: %d → %d registros (%d removidos).",
+        "Filtro de municípios: %d para %d registros (%d removidos).",
         antes,
         len(df),
         antes - len(df),
@@ -206,17 +300,28 @@ def filtrar_municipios(df: pd.DataFrame) -> pd.DataFrame:
 
 def criar_faixa_etaria(df: pd.DataFrame) -> pd.DataFrame:
     """
-    RF-03 — Cria a coluna `faixa_etaria` a partir do campo IDADE bruto do
-    SIH/SUS, decodificando o prefixo de unidade antes de classificar.
+    RF-03 — Cria as colunas `idade_anos` e `faixa_etaria` a partir dos campos
+    IDADE e COD_IDADE do SIH/SUS.
 
     Args:
-        df (pd.DataFrame): DataFrame com a coluna IDADE no formato SIH/SUS.
+        df (pd.DataFrame): DataFrame com as colunas IDADE e, opcionalmente,
+            COD_IDADE.
 
     Returns:
-        pd.DataFrame: DataFrame com a coluna `faixa_etaria` adicionada.
+        pd.DataFrame: DataFrame com `idade_anos` e `faixa_etaria` adicionadas.
+            Registros indecifráveis recebem `idade_anos = -1`.
     """
     df = df.copy()
-    df["idade_anos"] = df["IDADE"].apply(_decodificar_idade_sih)
+    if "COD_IDADE" in df.columns:
+        df["idade_anos"] = [
+            _decodificar_idade_sih(idade, cod)
+            for idade, cod in zip(df["IDADE"], df["COD_IDADE"])
+        ]
+    else:
+        logger.warning(
+            "Coluna COD_IDADE ausente — IDADE será interpretada como anos completos."
+        )
+        df["idade_anos"] = df["IDADE"].apply(_decodificar_idade_sih)
     df["faixa_etaria"] = df["idade_anos"].apply(_classificar_faixa_etaria)
     logger.info("Coluna 'faixa_etaria' criada com sucesso.")
     return df
@@ -239,15 +344,95 @@ def criar_cid_capitulo(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def transformar_detalhado(df: pd.DataFrame):
+    """
+    Aplica todas as transformações e devolve o funil quantitativo da execução.
+
+    Etapas executadas em ordem:
+      1. Filtro por municípios do Sudoeste do Paraná (RF-02)
+      2. Decodificação da idade e faixas etárias (RF-03)
+      3. Capítulos CID-10 (RF-04)
+      4. Descarte de registros inconsistentes (RF-16)
+      5. Seleção e renomeação das colunas finais
+
+    Critérios de descarte por inconsistência:
+      - `idade_indecifravel`: IDADE/COD_IDADE fora do layout do SIH/SUS
+      - `sexo_invalido`: SEXO ignorado ou fora do domínio 1/2/3
+      - `cid_desconhecido`: DIAG_PRINC sem capítulo CID-10 correspondente
+      - `valor_invalido`: VAL_TOT ausente ou negativo
+
+    Args:
+        df (pd.DataFrame): DataFrame bruto do SIH/SUS.
+
+    Returns:
+        tuple[pd.DataFrame, EstatisticasTransformacao]: DataFrame pronto para
+        carga e as estatísticas da transformação.
+    """
+    estatisticas = EstatisticasTransformacao(brutos=len(df))
+    logger.info("Iniciando transformações — %d registros brutos.", len(df))
+
+    # RF-02: filtro de municípios
+    df = filtrar_municipios(df)
+    estatisticas.fora_da_regiao = estatisticas.brutos - len(df)
+
+    # RF-03 e RF-04
+    df = criar_faixa_etaria(df)
+    df = criar_cid_capitulo(df)
+
+    df = df.copy()
+    df["sexo_normalizado"] = df["SEXO"].apply(_normalizar_sexo)
+    df["valor_numerico"] = pd.to_numeric(df["VAL_TOT"], errors="coerce")
+
+    # RF-16: descarte de inconsistências, avaliado em cascata para que cada
+    # registro seja contabilizado uma única vez, sob o primeiro motivo aplicável
+    criterios = [
+        ("idade_indecifravel", df["idade_anos"] < 0),
+        ("sexo_invalido", df["sexo_normalizado"].isna()),
+        ("cid_desconhecido", df["cid_capitulo"] == CAPITULO_DESCONHECIDO),
+        ("valor_invalido", df["valor_numerico"].isna() | (df["valor_numerico"] < 0)),
+    ]
+    validos = pd.Series(True, index=df.index)
+    for motivo, invalido in criterios:
+        atingidos = validos & invalido
+        estatisticas.registrar_descarte(motivo, int(atingidos.sum()))
+        validos &= ~invalido
+
+    df = df[validos].reset_index(drop=True)
+
+    for motivo, quantidade in estatisticas.descartes.items():
+        logger.info("Descartados por %s: %d registros.", motivo, quantidade)
+
+    # Seleção e renomeação para o esquema da tabela `internacoes`
+    df_final = pd.DataFrame({
+        "municipio_codigo": df["MUNIC_RES"],
+        "idade": df["idade_anos"].astype(int),
+        "sexo": df["sexo_normalizado"],
+        "faixa_etaria": df["faixa_etaria"],
+        "cid_principal": df["DIAG_PRINC"].astype(str).str.strip().str.upper(),
+        "cid_capitulo": df["cid_capitulo"],
+        "valor_total": df["valor_numerico"].astype(float),
+        "ano_competencia": df["ANO_CMPT"].astype(int) if "ANO_CMPT" in df.columns else 0,
+        "mes_competencia": df["MES_CMPT"].astype(int) if "MES_CMPT" in df.columns else 0,
+    })
+
+    estatisticas.finais = len(df_final)
+    logger.info(
+        "Transformações concluídas — %d brutos, %d fora da região, "
+        "%d descartados por inconsistência, %d prontos para carga.",
+        estatisticas.brutos,
+        estatisticas.fora_da_regiao,
+        estatisticas.total_descartados,
+        estatisticas.finais,
+    )
+    return df_final, estatisticas
+
+
 def transformar(df: pd.DataFrame) -> pd.DataFrame:
     """
     Aplica todas as transformações ao DataFrame bruto do SIH/SUS.
 
-    Etapas executadas em ordem:
-      1. Filtro por municípios do Sudoeste do Paraná (RF-02)
-      2. Criação da coluna de faixas etárias (RF-03)
-      3. Criação da coluna de capítulos CID-10 (RF-04)
-      4. Seleção e renomeação das colunas finais
+    Wrapper de `transformar_detalhado` para os casos em que apenas o
+    DataFrame resultante interessa.
 
     Args:
         df (pd.DataFrame): DataFrame bruto do SIH/SUS.
@@ -255,29 +440,5 @@ def transformar(df: pd.DataFrame) -> pd.DataFrame:
     Returns:
         pd.DataFrame: DataFrame transformado e pronto para carga.
     """
-    logger.info("Iniciando transformações — %d registros.", len(df))
-
-    # RF-02: filtro de municípios
-    df = filtrar_municipios(df)
-
-    # RF-03: faixas etárias
-    df = criar_faixa_etaria(df)
-
-    # RF-04: capítulos CID-10
-    df = criar_cid_capitulo(df)
-
-    # Seleção e renomeação para o esquema da tabela `internacoes`
-    df_final = pd.DataFrame({
-        "municipio_codigo": df["MUNIC_RES"],
-        "idade": df["idade_anos"].astype(int),
-        "sexo": df["SEXO"].astype(str).str.strip().str.upper(),
-        "faixa_etaria": df["faixa_etaria"],
-        "cid_principal": df["DIAG_PRINC"].astype(str).str.strip().str.upper(),
-        "cid_capitulo": df["cid_capitulo"],
-        "valor_total": pd.to_numeric(df["VAL_TOT"], errors="coerce").fillna(0.0),
-        "ano_competencia": df["ANO_CMPT"].astype(int) if "ANO_CMPT" in df.columns else 0,
-        "mes_competencia": df["MES_CMPT"].astype(int) if "MES_CMPT" in df.columns else 0,
-    })
-
-    logger.info("Transformações concluídas — %d registros prontos para carga.", len(df_final))
+    df_final, _ = transformar_detalhado(df)
     return df_final
