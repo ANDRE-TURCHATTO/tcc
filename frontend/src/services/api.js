@@ -28,7 +28,7 @@ export async function buscarGeometria() {
  * Endpoint: GET /api/indicadores
  *
  * @param {Object} filtros - { cid_capitulo, sexo, faixa_etaria }
- * @returns {Promise<Object>} { dados: [{ codigo_ibge, total_atendimentos, valor_total }] }
+ * @returns {Promise<Object>} { dados: [{ codigo_ibge, total_atendimentos, valor_total, populacao, taxa_por_100mil }] }
  */
 export async function buscarIndicadores(filtros = {}) {
   // Monta os query params removendo valores vazios

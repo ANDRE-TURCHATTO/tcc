@@ -2,20 +2,24 @@
  * LegendaMapa
  *
  * Exibe a legenda de cores do mapa coroplético.
- * Cada nível da escala de amarelo → vermelho é apresentado com seu rótulo.
+ * Cada nível da escala de amarelo → vermelho é apresentado com seu rótulo,
+ * expresso na unidade do indicador que colore o mapa: internações por 100 mil
+ * habitantes (RF-11).
  */
 
 import { obterIntervaloLegenda } from '../utils/colorScale';
 
 /**
- * @param {{ maximo: number }} props
+ * @param {{ cortes: Array<number> }} props - cortes quantílicos em vigor
  */
-export default function LegendaMapa({ maximo }) {
-  const intervalos = obterIntervaloLegenda(maximo);
+export default function LegendaMapa({ cortes }) {
+  const intervalos = obterIntervaloLegenda(cortes);
 
   return (
     <div className="legenda-mapa">
-      <p className="legenda-titulo">Atendimentos</p>
+      <p className="legenda-titulo">
+        Internações por 100 mil hab.
+      </p>
       <ul className="legenda-lista">
         {intervalos.map((item) => (
           <li key={item.rotulo} className="legenda-item">
