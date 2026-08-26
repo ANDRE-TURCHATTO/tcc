@@ -28,13 +28,27 @@
 {
   "dados": [
     {
-      "codigo_ibge": "411850",
-      "total_atendimentos": 1500,
-      "valor_total": 250000.50
+      "codigo_ibge": "410840",
+      "total_atendimentos": 9730,
+      "valor_total": 14293187.45,
+      "populacao": 96666,
+      "taxa_por_100mil": 10065.6
     }
   ]
 }
 ```
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `codigo_ibge` | string | Código IBGE do município, 6 dígitos |
+| `total_atendimentos` | number | Internações no filtro corrente |
+| `valor_total` | number | Soma dos valores das AIH, em reais |
+| `populacao` | number \| null | População residente (Censo IBGE 2022) |
+| `taxa_por_100mil` | number \| null | Internações por 100 mil habitantes; base da coloração do mapa (RF-11). Nulo quando a população não está cadastrada |
+
+Todos os 42 municípios do recorte são retornados em qualquer combinação de
+filtros. Municípios sem internações correspondentes vêm com
+`total_atendimentos: 0`, e não omitidos.
 
 #### Resposta de Erro — `400 Bad Request`
 

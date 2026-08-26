@@ -30,6 +30,10 @@ CREATE TABLE internacoes (
 
 Tabela de referência dos municípios do Sudoeste do Paraná.
 
+O recorte corresponde às microrregiões do IBGE que compõem a AMSOP —
+Capanema (8), Francisco Beltrão (19), Pato Branco (10) e Palmas (5) —,
+totalizando 42 municípios (RF-18).
+
 ```sql
 CREATE TABLE municipios_sudoeste (
   codigo_ibge  VARCHAR(7)   PRIMARY KEY,
@@ -37,6 +41,31 @@ CREATE TABLE municipios_sudoeste (
   microrregiao VARCHAR(100)
 );
 ```
+
+### 1.3 `populacao_municipio`
+
+Denominador populacional das taxas de internação (RF-17). Sem ele, o mapa
+coroplético refletiria o tamanho da população de cada município em vez do
+padrão de utilização dos serviços de saúde.
+
+```sql
+CREATE TABLE populacao_municipio (
+  codigo_ibge  VARCHAR(7)   NOT NULL,
+  ano          INTEGER      NOT NULL,  -- Ano de referência da contagem
+  populacao    INTEGER      NOT NULL,  -- População residente
+  fonte        VARCHAR(120) NOT NULL,  -- Ex: 'IBGE — Censo Demográfico 2022'
+  PRIMARY KEY (codigo_ibge, ano),
+  CONSTRAINT fk_populacao_municipio
+      FOREIGN KEY (codigo_ibge)
+      REFERENCES municipios_sudoeste (codigo_ibge)
+);
+```
+
+**Fonte adotada:** Censo Demográfico 2022 do IBGE (população residente
+recenseada). A série de estimativas populacionais do IBGE não cobre o ano de
+2023 — o Censo 2022 a substituiu naquele intervalo —, de modo que o ano
+imediatamente anterior à competência analisada é o denominador disponível
+mais próximo.
 
 ---
 
@@ -54,21 +83,34 @@ CREATE INDEX idx_internacoes_municipio     ON internacoes (municipio_codigo);
 
 ## 3. Query Principal (Agregação)
 
-Query executada pelo endpoint `GET /api/indicadores`:
+Query executada pelo endpoint `GET /api/indicadores`. A agregação parte de
+`municipios_sudoeste` com `LEFT JOIN` sobre as internações, de modo que
+municípios sem nenhum registro no filtro corrente apareçam com contagem zero
+em vez de desaparecerem do resultado — condição para que o mapa renderize os
+42 municípios em qualquer combinação de filtros.
 
 ```sql
 SELECT
-  i.municipio_codigo  AS codigo_ibge,
-  COUNT(*)            AS total_atendimentos,
-  SUM(i.valor_total)  AS valor_total
-FROM internacoes i
-WHERE
-  i.municipio_codigo IN (SELECT codigo_ibge FROM municipios_sudoeste)
-  AND (i.cid_capitulo   = :cid_capitulo   OR :cid_capitulo   IS NULL)
-  AND (i.sexo           = :sexo           OR :sexo           IS NULL)
-  AND (i.faixa_etaria   = :faixa_etaria   OR :faixa_etaria   IS NULL)
-GROUP BY i.municipio_codigo;
+  m.codigo_ibge,
+  COUNT(i.id)                        AS total_atendimentos,
+  COALESCE(SUM(i.valor_total), 0)    AS valor_total,
+  p.populacao,
+  ROUND(COUNT(i.id)::NUMERIC * 100000 / NULLIF(p.populacao, 0), 1)
+                                     AS taxa_por_100mil
+FROM municipios_sudoeste m
+LEFT JOIN populacao_municipio p
+       ON p.codigo_ibge = m.codigo_ibge
+      AND p.ano = :ano_populacao
+LEFT JOIN internacoes i
+       ON i.municipio_codigo = m.codigo_ibge
+      AND (i.cid_capitulo = :cid_capitulo OR :cid_capitulo IS NULL)
+      AND (i.sexo         = :sexo         OR :sexo         IS NULL)
+      AND (i.faixa_etaria = :faixa_etaria OR :faixa_etaria IS NULL)
+GROUP BY m.codigo_ibge, p.populacao;
 ```
+
+`taxa_por_100mil` é nula quando a população do município não está cadastrada,
+situação em que o mapa aplica a cor neutra de "sem dados".
 
 ---
 
@@ -88,14 +130,18 @@ GROUP BY i.municipio_codigo;
 {
   "dados": [
     {
-      "codigo_ibge": "411850",
-      "total_atendimentos": 1500,
-      "valor_total": 250000.50
+      "codigo_ibge": "410840",
+      "total_atendimentos": 9730,
+      "valor_total": 14293187.45,
+      "populacao": 96666,
+      "taxa_por_100mil": 10065.6
     },
     {
-      "codigo_ibge": "410010",
-      "total_atendimentos": 800,
-      "valor_total": 120000.00
+      "codigo_ibge": "411850",
+      "total_atendimentos": 7895,
+      "valor_total": 11804922.10,
+      "populacao": 91836,
+      "taxa_por_100mil": 8596.8
     }
   ]
 }

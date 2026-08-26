@@ -1,0 +1,13 @@
+{
+  "_comentario": "Medições tomadas fora de medir_rnf.js. Cada campo registra o instrumento usado.",
+  "cobertura_pct": 100,
+  "testes": 90,
+  "cobertura_instrumento": "pytest --cov=etl.transformer (pipeline/, 128 de 128 linhas)",
+  "pipeline_s": 110.4,
+  "pipeline_instrumento": "soma dos tempos por competência em docs/resultados/caracterizacao_base_2023.md",
+  "violacoes_camadas": 0,
+  "camadas_instrumento": "inspeção do grafo de require em backend/src",
+  "interacoes": 4,
+  "interacoes_instrumento": "3 selects da sidebar + botão Atualizar Mapa",
+  "render_instrumento": "medido por frontend/scripts/medir_render.js — resultado em rnf_render.json"
+}

@@ -1,0 +1,17 @@
+{
+  "alvo": "http://localhost:5173",
+  "iteracoes": 7,
+  "amostras_ms": [
+    86.9,
+    183.9,
+    55.6,
+    37.5,
+    135.6,
+    36.1,
+    60.1
+  ],
+  "mediana_ms": 60.1,
+  "media_ms": 85.1,
+  "max_ms": 183.9,
+  "poligonos": 42
+}

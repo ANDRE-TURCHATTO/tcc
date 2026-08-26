@@ -2,20 +2,21 @@
 !theme cerulean-outline
 title Arquitetura do Sistema Longevus
 
-package "Fonte de Dados" {
-  [DATASUS\n(.dbc)] as DATASUS #LightYellow
+package "Fontes de Dados" {
+  [DATASUS — SIH/SUS\n(.dbc, AIH Reduzida)] as DATASUS #LightYellow
+  [IBGE\n(Censo 2022 + malha municipal)] as IBGE #LightYellow
 }
 
 package "Pipeline ETL" {
-  [Script Python\n(pysus + pandas)] as ETL #LightBlue
+  [Script Python\n(pysus + pandas + GeoPandas)] as ETL #LightBlue
 }
 
 package "Banco de Dados" {
-  database "Supabase\n(PostgreSQL + PostGIS)" as DB #LightGreen
+  database "PostgreSQL + PostGIS\ncontainer local | Supabase" as DB #LightGreen
 }
 
 package "Backend" {
-  [API Node.js\nFastify + Cache] as API #LightSalmon
+  [API Node.js\nFastify + cache in-memory] as API #LightSalmon
 }
 
 package "Frontend" {
@@ -25,10 +26,18 @@ package "Frontend" {
 actor "Profissional\nde Saúde" as USER
 
 DATASUS --> ETL : arquivos .dbc
+IBGE --> ETL : população e geometrias
 ETL --> DB : INSERT (dados transformados)
-DB --> API : SQL (queries agregadas)
-API --> FE : JSON (dados agregados)
-FE --> USER : Mapa Coroplético Interativo
-USER --> FE : Filtros (CID / Sexo / Faixa Etária)
+DB --> API : SQL agregado\n(taxa por 100 mil hab.)
+API --> FE : JSON agregado + GeoJSON
+FE --> USER : mapa coroplético interativo
+USER --> FE : filtros (CID / sexo / faixa etária)
+
+note bottom of DB
+  Consultas espaciais sobre a
+  topologia do território:
+  vizinhança por contiguidade
+  e autocorrelação local.
+end note
 
 @enduml
