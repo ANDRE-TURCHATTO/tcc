@@ -45,8 +45,8 @@ Este projeto adota **Specification-Driven Development (SDD)**:
 | Camada | Tecnologia |
 |--------|------------|
 | ETL | Python (pysus, pandas) |
-| Banco de Dados | PostgreSQL + PostGIS (Supabase) |
+| Banco de Dados | PostgreSQL + PostGIS (container local via docker-compose; Supabase em nuvem) |
 | Backend | Node.js + Fastify |
 | Frontend | React + Vite + Leaflet + TanStack Query |
-| Cache | Node-cache / Redis |
+| Cache | node-cache (in-memory) |
 | GeoJSON | IBGE — malha municipal |

@@ -30,7 +30,7 @@ Buscando --> ErroAPI : erro de rede\nou status != 200
 
 state MapaAtualizado {
   state "Indicadores combinados\ncom GeoJSON" as Combinados
-  state "Mapa recolorido\n(amarelo → vermelho)" as Recolorido
+  state "Mapa recolorido pela taxa\npor 100 mil hab. (quintis)" as Recolorido
   Combinados --> Recolorido
 }
 
@@ -38,7 +38,7 @@ MapaAtualizado --> SelecionandoFiltros : usuário altera\nfiltros novamente
 
 state SemDados {
   state "Municípios neutros\n(cinza)" as Neutros
-  state "Aviso exibido:\n\"Nenhum dado encontrado\"" as Aviso
+  state "Aviso exibido:\nNenhum dado encontrado" as Aviso
 }
 
 state ErroAPI {

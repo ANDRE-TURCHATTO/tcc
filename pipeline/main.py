@@ -66,8 +66,12 @@ def executar_pipeline(ano: int, mes: int) -> None:
         mes (int): Mês de competência.
     """
     from etl.extractor import extrair_dados
-    from etl.loader import carregar_internacoes, carregar_municipios
-    from etl.transformer import transformar
+    from etl.loader import (
+        carregar_internacoes,
+        carregar_municipios,
+        carregar_populacao,
+    )
+    from etl.transformer import transformar_detalhado
 
     inicio = time.time()
     logger.info("=" * 60)
@@ -82,21 +86,33 @@ def executar_pipeline(ano: int, mes: int) -> None:
     logger.info("[1/3] Extração concluída — %d registros brutos.", len(df_bruto))
 
     # -----------------------------------------------------------------------
-    # Etapa 2 — Transformação (RF-02, RF-03, RF-04)
+    # Etapa 2 — Transformação (RF-02, RF-03, RF-04, RF-16)
     # -----------------------------------------------------------------------
     logger.info("[2/3] Aplicando transformações...")
-    df_transformado = transformar(df_bruto)
-    logger.info("[2/3] Transformação concluída — %d registros prontos.", len(df_transformado))
+    df_transformado, estatisticas = transformar_detalhado(df_bruto)
+    logger.info(
+        "[2/3] Funil de transformação — brutos: %d | fora da região: %d | "
+        "descartados por inconsistência: %d | prontos para carga: %d",
+        estatisticas.brutos,
+        estatisticas.fora_da_regiao,
+        estatisticas.total_descartados,
+        estatisticas.finais,
+    )
+    for motivo, quantidade in sorted(estatisticas.descartes.items()):
+        logger.info("[2/3] Descarte '%s': %d registros.", motivo, quantidade)
 
     # -----------------------------------------------------------------------
     # Etapa 3 — Carga (RF-05)
     # -----------------------------------------------------------------------
     logger.info("[3/3] Carregando dados no Supabase...")
     total_municipios = carregar_municipios()
+    total_populacao = carregar_populacao()
     total_internacoes = carregar_internacoes(df_transformado)
     logger.info(
-        "[3/3] Carga concluída — %d municípios, %d internações inseridas.",
+        "[3/3] Carga concluída — %d municípios, %d denominadores populacionais, "
+        "%d internações inseridas.",
         total_municipios,
+        total_populacao,
         total_internacoes,
     )
 

@@ -1,0 +1,22 @@
+{
+  "alvo": "http://localhost:3000",
+  "concorrencia": 10,
+  "duracao_s": 20,
+  "indicadores": {
+    "cache_frio_ms": 211.1,
+    "requisicoes": 77673,
+    "erros": 0,
+    "req_por_s": 3883.7,
+    "media_ms": 2.57,
+    "p50_ms": 2.01,
+    "p95_ms": 5.54,
+    "p99_ms": 8.16,
+    "max_ms": 36.92,
+    "payload_bytes": 4946,
+    "linhas_payload": 42
+  },
+  "geometria": {
+    "bytes_servidos": 74854,
+    "ms": 8.3
+  }
+}

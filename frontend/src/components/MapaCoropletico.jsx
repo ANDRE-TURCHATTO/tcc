@@ -3,15 +3,16 @@
  *
  * Componente principal do mapa interativo.
  * Renderiza o GeoJSON dos municípios do Sudoeste do Paraná usando Leaflet,
- * aplica coloração coroplética conforme total_atendimentos e exibe tooltip.
+ * aplica coloração coroplética conforme a taxa de internações por 100 mil
+ * habitantes (RF-11) e exibe tooltip com os demais indicadores.
  */
 
-import { useRef, useEffect } from 'react';
+import { useRef } from 'react';
 import { MapContainer, TileLayer, GeoJSON } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 
-import { calcularCor, obterIntervaloLegenda } from '../utils/colorScale';
-import { combinarDadosGeo, obterMaximoAtendimentos } from '../utils/mergeGeoData';
+import { calcularCor, calcularCortes } from '../utils/colorScale';
+import { combinarDadosGeo, obterTaxas } from '../utils/mergeGeoData';
 import LegendaMapa from './LegendaMapa';
 import EstadoCarregamento from './EstadoCarregamento';
 
@@ -39,21 +40,38 @@ export default function MapaCoropletico({
   erroIndicadores,
   semDados,
 }) {
-  // Referência para forçar re-render do GeoJSON quando os dados mudam
+  // Chave de remontagem da camada GeoJSON.
+  //
+  // O componente <GeoJSON> do react-leaflet cria a camada Leaflet uma única
+  // vez: mudanças posteriores em `data` e `style` não repintam os polígonos.
+  // A remontagem por `key` é o que força a repintura quando novos indicadores
+  // chegam.
+  //
+  // O incremento acontece durante o render, e não em um efeito: um efeito só
+  // roda depois da renderização, de modo que a chave nova chegaria um render
+  // atrasada — justamente o render em que os indicadores aparecem. O resultado
+  // seria o mapa permanecer cinza com a legenda já preenchida.
+  const indicadoresAnteriores = useRef(null);
   const geojsonKey = useRef(0);
-  useEffect(() => {
+  if (indicadoresAnteriores.current !== indicadores) {
+    indicadoresAnteriores.current = indicadores;
     geojsonKey.current += 1;
-  }, [indicadores]);
+  }
 
-  // Combina geometria com indicadores
+  // Combina geometria com indicadores. A escala de cores é ancorada na maior
+  // taxa observada, não no maior valor absoluto.
   const geoDados = combinarDadosGeo(geojson, indicadores || []);
-  const maximo = obterMaximoAtendimentos(geoDados);
+
+  // Cortes quantílicos da distribuição corrente (RF-19). São recalculados a
+  // cada conjunto de indicadores, de modo que os cinco níveis da escala
+  // permaneçam em uso qualquer que seja o filtro aplicado.
+  const cortes = calcularCortes(obterTaxas(geoDados));
 
   // Função de estilo aplicada a cada feature do GeoJSON
   function estilizarFeature(feature) {
-    const total = feature.properties?.total_atendimentos;
+    const taxa = feature.properties?.taxa_por_100mil;
     return {
-      fillColor: calcularCor(total, maximo),
+      fillColor: calcularCor(taxa, cortes),
       weight: 1,
       opacity: 1,
       color: '#555',
@@ -72,12 +90,28 @@ export default function MapaCoropletico({
   }
 
   function onEachFeature(feature, layer) {
-    const { nome, total_atendimentos, valor_total } = feature.properties || {};
+    const {
+      nome,
+      total_atendimentos,
+      valor_total,
+      populacao,
+      taxa_por_100mil,
+    } = feature.properties || {};
 
-    // Formata os valores para o tooltip
-    const totalFormatado =
-      total_atendimentos !== null && total_atendimentos !== undefined
-        ? new Intl.NumberFormat('pt-BR').format(total_atendimentos)
+    // Formata os valores para o tooltip. A taxa vem primeiro por ser o
+    // indicador que colore o mapa; o absoluto permanece à vista porque os
+    // dois números juntos são o que torna a leitura interpretável.
+    const inteiro = (valor) =>
+      valor !== null && valor !== undefined
+        ? new Intl.NumberFormat('pt-BR').format(valor)
+        : 'Sem dados';
+
+    const taxaFormatada =
+      taxa_por_100mil !== null && taxa_por_100mil !== undefined
+        ? `${new Intl.NumberFormat('pt-BR', {
+            minimumFractionDigits: 1,
+            maximumFractionDigits: 1,
+          }).format(taxa_por_100mil)} / 100 mil hab.`
         : 'Sem dados';
 
     const valorFormatado =
@@ -90,7 +124,9 @@ export default function MapaCoropletico({
         <strong class="tooltip-municipio">${nome || 'Município'}</strong>
         <table class="tooltip-tabela">
           <tbody>
-            <tr><td>Atendimentos:</td><td><strong>${totalFormatado}</strong></td></tr>
+            <tr><td>Taxa de internação:</td><td><strong>${taxaFormatada}</strong></td></tr>
+            <tr><td>Atendimentos:</td><td><strong>${inteiro(total_atendimentos)}</strong></td></tr>
+            <tr><td>População:</td><td><strong>${inteiro(populacao)}</strong></td></tr>
             <tr><td>Valor total:</td><td><strong>${valorFormatado}</strong></td></tr>
           </tbody>
         </table>
@@ -168,7 +204,7 @@ export default function MapaCoropletico({
       )}
 
       {/* Legenda */}
-      <LegendaMapa maximo={maximo} />
+      <LegendaMapa cortes={cortes} />
     </div>
   );
 }

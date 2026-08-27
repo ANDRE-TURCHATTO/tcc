@@ -28,3 +28,20 @@ npm-debug.log*
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
+.venv/
+__pycache__/
+.pytest_cache/
+.coverage
+data/raw/
+data/processed/
+
+# PlantUML CLI (baixado localmente para renderizar os diagramas)
+plantuml.jar
+
+# Dados baixados e intermediarios do pipeline (reproduziveis por main.py)
+pipeline/data/raw/
+pipeline/data/processed/
+*.bak
+
+# Documento gerado a partir de TCC.md por docs/gerar_docx.py
+TCC.docx

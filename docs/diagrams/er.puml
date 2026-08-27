@@ -21,9 +21,19 @@ entity "municipios_sudoeste" as MUN {
   --
   * nome : VARCHAR(100)
   microrregiao : VARCHAR(100)
+  geometria : GEOMETRY(MultiPolygon, 4674)
+}
+
+entity "populacao_municipio" as POP {
+  * codigo_ibge : VARCHAR(7) <<PK>> <<FK>>
+  * ano : INTEGER <<PK>>
+  --
+  * populacao : INTEGER
+  * fonte : VARCHAR(120)
 }
 
 INT }o--|| MUN : "reside em"
+POP }o--|| MUN : "denominador de"
 
 note right of INT
   Índices:
@@ -31,6 +41,21 @@ note right of INT
   - idx_internacoes_sexo
   - idx_internacoes_faixa_etaria
   - idx_internacoes_municipio
+end note
+
+note bottom of MUN
+  Coluna geométrica em SRID 4674
+  (SIRGAS 2000), com índice GIST.
+  Sustenta as consultas espaciais:
+  ST_Touches, ST_Union, ST_Area.
+end note
+
+note bottom of POP
+  Censo Demográfico 2022 do IBGE.
+  Sem este denominador o mapa
+  exibiria a distribuição
+  populacional, e não o padrão
+  de utilização dos serviços.
 end note
 
 @enduml
